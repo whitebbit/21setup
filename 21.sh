@@ -7,7 +7,7 @@ set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 
-readonly VERSION="1.0"
+readonly SCRIPT_VERSION="1.0"
 readonly LOG_FILE="/var/log/21-server-setup.log"
 readonly GEOIP_URL="https://github.com/Davoyan/ipregion/raw/main/ipregion.sh"
 
