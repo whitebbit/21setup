@@ -151,18 +151,36 @@ run_step() {
     local description="$1"
     shift
 
+    local show_output=false
+
+    if [[ "${1:-}" == "--show" ]]; then
+        show_output=true
+        shift
+    fi
+
     STEP=$((STEP + 1))
 
     printf '%s[%02d/%02d]%s %-48s' \
         "$C_CYAN" "$STEP" "$TOTAL_STEPS" "$C_RESET" "$description"
 
-    if "$@" >>"$LOG_FILE" 2>&1; then
-        PASSED_STEPS=$((PASSED_STEPS + 1))
-        printf '%s✓ OK%s\n' "$C_GREEN" "$C_RESET"
+    if [[ "$show_output" == true ]]; then
+        if "$@" 2>>"$LOG_FILE" | tee -a "$LOG_FILE"; then
+            PASSED_STEPS=$((PASSED_STEPS + 1))
+            printf '%s✓ OK%s\n' "$C_GREEN" "$C_RESET"
+        else
+            FAILED_STEPS=$((FAILED_STEPS + 1))
+            printf '%s✗ FAILED%s\n' "$C_RED" "$C_RESET"
+            printf '       Подробности: %s\n' "$LOG_FILE"
+        fi
     else
-        FAILED_STEPS=$((FAILED_STEPS + 1))
-        printf '%s✗ FAILED%s\n' "$C_RED" "$C_RESET"
-        printf '       Подробности: %s\n' "$LOG_FILE"
+        if "$@" >>"$LOG_FILE" 2>&1; then
+            PASSED_STEPS=$((PASSED_STEPS + 1))
+            printf '%s✓ OK%s\n' "$C_GREEN" "$C_RESET"
+        else
+            FAILED_STEPS=$((FAILED_STEPS + 1))
+            printf '%s✗ FAILED%s\n' "$C_RED" "$C_RESET"
+            printf '       Подробности: %s\n' "$LOG_FILE"
+        fi
     fi
 }
 
@@ -581,7 +599,7 @@ run_step "Блокировка ICMP echo-request" block_icmp_echo
 run_step "Настройка Fail2ban" configure_fail2ban
 run_step "Проверка DNS" check_dns
 run_step "Синхронизация времени" configure_time_sync
-run_step "GeoIP-отчет" show_geoip_report
-run_step "Итоговая диагностика" show_summary
+run_step --show "GeoIP-отчет" show_geoip_report
+run_step --show "Итоговая диагностика" show_summary
 
 printf 'Finished: %s\n' "$(date --iso-8601=seconds)" >>"$LOG_FILE"
