@@ -599,7 +599,7 @@ run_step "Блокировка ICMP echo-request" block_icmp_echo
 run_step "Настройка Fail2ban" configure_fail2ban
 run_step "Проверка DNS" check_dns
 run_step "Синхронизация времени" configure_time_sync
-run_step --show "GeoIP-отчет" show_geoip_report
-run_step --show "Итоговая диагностика" show_summary
+run_step "GeoIP-отчет" --show show_geoip_report
+run_step "Итоговая диагностика" --show show_summary
 
 printf 'Finished: %s\n' "$(date --iso-8601=seconds)" >>"$LOG_FILE"
