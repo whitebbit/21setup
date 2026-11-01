@@ -32,13 +32,13 @@ Root privileges are required.
 Run the setup script directly from GitHub:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/whitebbit/21/main/21.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/whitebbit/21setup/main/21.sh)
 ```
 
 Or using `wget`:
 
 ```bash
-bash <(wget -qO- https://raw.githubusercontent.com/whitebbit/21/main/21.sh)
+bash <(wget -qO- https://raw.githubusercontent.com/whitebbit/21setup/main/21.sh)
 ```
 
 > Replace `whitebbit` if the repository is owned by a different GitHub account.
