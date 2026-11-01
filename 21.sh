@@ -124,7 +124,7 @@ draw_banner() {
 
     printf '%s║%s║%s\n' \
         "$C_CYAN" \
-        "$(printf '%-*s' "$inner" "$(center_text "v${VERSION}" "$inner")")" \
+        "$(printf '%-*s' "$inner" "$(center_text "v${SCRIPT_VERSION}" "$inner")")" \
         "$C_RESET"
 
     printf '%s║%s║%s\n' "$C_CYAN" "$(repeat_char ' ' "$inner")" "$C_RESET"
@@ -218,7 +218,7 @@ check_system() {
 
     {
         printf '\n'
-        printf '%s\n' "===== SERVER AUTO SETUP v${VERSION} ====="
+        printf '%s\n' "===== SERVER AUTO SETUP v${SCRIPT_VERSION} ====="
         printf 'Started: %s\n' "$(date --iso-8601=seconds)"
         printf 'OS: %s\n' "${PRETTY_NAME:-unknown}"
         printf 'Kernel: %s\n' "$(uname -r)"
