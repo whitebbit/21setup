@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SERVER AUTO SETUP v1.0
+# SERVER AUTO SETUP v1.1
 # Debian / Ubuntu
 # Run as root: bash 21.sh
 
@@ -7,9 +7,8 @@ set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export NEEDRESTART_MODE=a
 
-readonly SCRIPT_VERSION="1.0"
+readonly SCRIPT_VERSION="1.1"
 readonly LOG_FILE="/var/log/21-server-setup.log"
-readonly GEOIP_URL="https://github.com/Davoyan/ipregion/raw/main/ipregion.sh"
 
 STEP=0
 TOTAL_STEPS=10
@@ -231,11 +230,11 @@ check_system() {
 # ─────────────────────────────────────────────────────────────
 
 update_system() {
-    apt-get update
+    apt-get update || return 1
     apt-get -y \
         -o Dpkg::Options::="--force-confdef" \
         -o Dpkg::Options::="--force-confold" \
-        upgrade
+        upgrade || return 1
 
     apt-get install -y \
         curl \
@@ -246,7 +245,8 @@ update_system() {
         iproute2 \
         procps \
         dnsutils \
-        systemd
+        jq \
+        systemd || return 1
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -292,25 +292,25 @@ configure_ufw() {
 
     mapfile -t SSH_PORTS < <(detect_ssh_ports)
 
-    ufw default deny incoming
-    ufw default allow outgoing
+    ufw default deny incoming || return 1
+    ufw default allow outgoing || return 1
 
     # SSH ports detected from the active session and sshd config.
     for port in "${SSH_PORTS[@]}"; do
-        ufw allow "${port}/tcp"
+        ufw allow "${port}/tcp" || return 1
     done
 
     # Required ports.
-    ufw allow 80/tcp
-    ufw allow 443/tcp
-    ufw allow 443/udp
-    ufw allow 8443/tcp
-    ufw allow 8443/udp
-    ufw allow 10000:60000/tcp
-    ufw allow 10000:60000/udp
+    ufw allow 80/tcp || return 1
+    ufw allow 443/tcp || return 1
+    ufw allow 443/udp || return 1
+    ufw allow 8443/tcp || return 1
+    ufw allow 8443/udp || return 1
+    ufw allow 10000:60000/tcp || return 1
+    ufw allow 10000:60000/udp || return 1
 
-    ufw --force enable
-    ufw reload
+    ufw --force enable || return 1
+    ufw reload || return 1
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -350,7 +350,7 @@ EOF
         printf 'BBR is not available in this kernel; skipped.\n' >>"$LOG_FILE"
     fi
 
-    sysctl --system
+    sysctl --system || return 1
 
     if grep -qw "bbr" <<<"$bbr_available"; then
         local current_cc
@@ -376,7 +376,7 @@ net.ipv6.conf.default.disable_ipv6 = 1
 net.ipv6.conf.lo.disable_ipv6 = 1
 EOF
 
-    sysctl --system
+    sysctl --system || return 1
 
     if [[ -f /etc/default/ufw ]]; then
         if grep -q '^IPV6=' /etc/default/ufw; then
@@ -386,7 +386,7 @@ EOF
         fi
     fi
 
-    ufw reload
+    ufw reload || return 1
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -414,7 +414,7 @@ block_icmp_echo() {
         sed -E -i "$pattern" "$file"
     done
 
-    ufw reload
+    ufw reload || return 1
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -448,8 +448,8 @@ mode = aggressive
 port = ${ports}
 EOF
 
-    systemctl enable --now fail2ban
-    fail2ban-client reload
+    systemctl enable --now fail2ban || return 1
+    fail2ban-client reload || return 1
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -491,8 +491,8 @@ configure_time_sync() {
         systemctl enable --now chrony || systemctl enable --now chronyd || true
 
     else
-        apt-get install -y chrony
-        systemctl enable --now chrony
+        apt-get install -y chrony || return 1
+        systemctl enable --now chrony || return 1
     fi
 
     timedatectl status 2>/dev/null || true
@@ -503,46 +503,33 @@ configure_time_sync() {
 # ─────────────────────────────────────────────────────────────
 
 show_geoip_report() {
-    local tmp_file
-    local output
-    local legend
+    local response
 
-    tmp_file="$(mktemp)"
-
-    if ! curl -fsSL --connect-timeout 8 --max-time 30 \
-        -o "$tmp_file" "$GEOIP_URL"; then
-
-        rm -f "$tmp_file"
-        printf 'GeoIP script could not be downloaded.\n' >>"$LOG_FILE"
-        print_warn "GeoIP-отчет не получен: скрипт недоступен."
+    if ! response="$(curl -fsSL --connect-timeout 8 --max-time 20 \
+        https://ipapi.co/json/ 2>>"$LOG_FILE")"; then
+        print_warn "GeoIP-отчет недоступен; настройка сервера продолжается."
         return 0
     fi
-
-    if ! output="$(timeout 45 bash "$tmp_file" 2>>"$LOG_FILE")"; then
-        rm -f "$tmp_file"
-        printf 'GeoIP script execution failed.\n' >>"$LOG_FILE"
-        print_warn "GeoIP-скрипт завершился с ошибкой."
-        return 0
-    fi
-
-    rm -f "$tmp_file"
-
-    legend="$(
-        printf '%s\n' "$output" |
-            awk '
-                /Legend/ { found = 1; next }
-                found && /[0-9]+%/ { print }
-            '
-    )"
 
     printf '\n'
     printf '%s━━ GeoIP ━━%s\n' "$C_CYAN" "$C_RESET"
 
-    if [[ -n "$legend" ]]; then
-        printf '%s\n' "$legend"
-    else
-        print_warn "В выводе GeoIP не найдена секция Legend с процентами."
+    if ! jq -e . >/dev/null 2>&1 <<<"$response"; then
+        print_warn "Сервис GeoIP вернул некорректный ответ."
+        return 0
     fi
+
+    jq -r '
+        [
+          ["IP", (.ip // "unknown")],
+          ["Город", (.city // "unknown")],
+          ["Регион", (.region // "unknown")],
+          ["Страна", (.country_name // "unknown")],
+          ["Провайдер", (.org // "unknown")]
+        ]
+        | .[]
+        | "\(.[0]): \(.[1])"
+    ' <<<"$response"
 }
 
 # ─────────────────────────────────────────────────────────────
